@@ -1,0 +1,111 @@
+-- QUESTION 2 PART 1
+CREATE TABLE Members (
+    MemberID INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Email VARCHAR(100) UNIQUE NOT NULL,
+    JoinDate DATE DEFAULT SYSDATE
+);
+
+CREATE TABLE Books (
+    BookID INT PRIMARY KEY,
+    Title VARCHAR(200) NOT NULL,
+    Author VARCHAR(100) NOT NULL,
+    CopiesAvailable INT DEFAULT 0 CHECK (CopiesAvailable >= 0)
+);
+
+CREATE TABLE IssuedBooks (
+    IssueID INT PRIMARY KEY,
+    MemberID INT NOT NULL,
+    BookID INT NOT NULL,
+    IssueDate DATE DEFAULT SYSDATE,
+    ReturnDate DATE,
+    FOREIGN KEY (MemberID) REFERENCES Members(MemberID) ON DELETE CASCADE,
+    FOREIGN KEY (BookID) REFERENCES Books(BookID) ON DELETE CASCADE
+);
+
+
+-- QUESTION 2 PART 2
+CREATE VIEW Catalog_Tables AS
+SELECT table_name
+FROM user_tables
+WHERE table_name IN ('MEMBERS', 'BOOKS', 'ISSUEDBOOKS');
+CREATE VIEW Catalog_Columns AS
+SELECT table_name, column_name, data_type, nullable AS is_nullable, data_default AS column_default
+FROM user_tab_columns
+WHERE table_name IN ('MEMBERS', 'BOOKS', 'ISSUEDBOOKS');
+CREATE VIEW Catalog_Constraints AS
+SELECT table_name, constraint_name, constraint_type
+FROM user_constraints
+WHERE table_name IN ('MEMBERS', 'BOOKS', 'ISSUEDBOOKS');
+
+-- QUESTION 2 PART 3
+--part a: Insert at least 3 Members and 3 Books.
+INSERT INTO Members (MemberID, Name, Email) VALUES (1, 'Alice Johnson', 'alice@example.com');
+INSERT INTO Members (MemberID, Name, Email) VALUES (2, 'Bob Smith', 'bob@example.com');
+INSERT INTO Members (MemberID, Name, Email) VALUES (3, 'Charlie Davis', 'charlie@example.com');
+
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable) VALUES (101, 'The Great Gatsby', 'F. Scott Fitzgerald', 5);
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable) VALUES (102, '1984', 'George Orwell', 3);
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable) VALUES (103, 'To Kill a Mockingbird', 'Harper Lee', 4);
+
+--part b: Record the issuance of a book to a member and update the available copies.
+INSERT INTO IssuedBooks (IssueID, MemberID, BookID) VALUES (1001, 1, 101);
+UPDATE Books SET CopiesAvailable = CopiesAvailable - 1 WHERE BookID = 101;
+
+--part c: Display the names of all members and their issued books using a JOIN query.
+SELECT m.Name AS MemberName, b.Title AS BookTitle
+FROM Members m
+LEFT JOIN IssuedBooks ib ON m.MemberID = ib.MemberID
+LEFT JOIN Books b ON ib.BookID = b.BookID;
+
+--QUESTION 2 PART 4
+--part a: Key constraint Violation – Try inserting a duplicate MemberID.
+INSERT INTO Members (MemberID, Name, Email) VALUES (1, 'Duplicate Member', 'duplicate@example.com');
+
+--part b: Referential integrity Violation – Try issuing a book to a non-existent MemberID.
+INSERT INTO IssuedBooks (IssueID, MemberID, BookID) VALUES (1002, 999, 101);
+
+--part c: Check Constraint Violation – Try setting a negative value for CopiesAvailable.
+UPDATE Books SET CopiesAvailable = -1 WHERE BookID = 101;
+
+--QUESTION 2 PART 5: Suggest two improvements you would add to this Library Management System in the future.
+/*
+
+1.Add a Fines table linked to IssuedBooks to track overdue fines, with columns like FineID (PK), IssueID (FK), Amount, PaymentDate. 
+This would enable automatic fine calculation for overdue books.
+
+2.Introduce a Categories table for books (e.g., Genre, PublicationYear) with a many-to-many relationship via a junction table,
+allowing better search and organization of the library inventory.
+
+*/
+
+--QUESTION 2 PART 6
+--part a: Find Members with No Issued Books
+SELECT * FROM Members
+WHERE MemberID NOT IN (SELECT MemberID FROM IssuedBooks);
+
+--part b: Find Books with Highest Copies
+SELECT * FROM Books
+WHERE CopiesAvailable = (SELECT MAX(CopiesAvailable) FROM Books);
+
+--part c: Find the Most Active Member
+SELECT * FROM Members
+WHERE MemberID = (
+    SELECT MemberID FROM (
+        SELECT MemberID, COUNT(*) AS IssueCount FROM IssuedBooks
+        GROUP BY MemberID
+        ORDER BY IssueCount DESC
+    ) WHERE ROWNUM <= 1
+);
+
+--part d: Find the Books Not Issued
+SELECT * FROM Books
+WHERE BookID NOT IN (SELECT BookID FROM IssuedBooks);
+
+--part e: Members with Books Overdue (Assume books are overdue if the ReturnDate is NULL and
+IssueDate is more than 30 days ago.
+SELECT * FROM Members
+WHERE MemberID IN (
+    SELECT MemberID FROM IssuedBooks
+    WHERE ReturnDate IS NULL AND IssueDate < SYSDATE - 30
+);
